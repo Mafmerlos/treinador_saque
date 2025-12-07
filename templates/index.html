@@ -3,43 +3,82 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Tênis AI - Análise de Saque</title>
+    <title>Esportes AI - Análise de Movimento</title>
     <style>
-        body { font-family: sans-serif; background: #f4f4f9; color: #333; padding: 20px; text-align: center;}
+        body { font-family: sans-serif; background: #f4f4f9; color: #333; margin: 0; padding: 0; text-align: center; }
+
+        /* MENU DE NAVEGAÇÃO */
+        .navbar { background-color: #0056b3; overflow: hidden; display: flex; justify-content: center; padding: 10px 0; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .navbar a { float: left; display: block; color: white; text-align: center; padding: 14px 20px; text-decoration: none; font-size: 17px; font-weight: bold; border-radius: 5px; margin: 0 5px; transition: background 0.3s; }
+        .navbar a:hover { background-color: #004494; }
+        .navbar a.active { background-color: #ffd700; color: #003366; }
+
         .container { background: #fff; padding: 2rem; border-radius: 12px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         h1 { color: #0056b3; }
-        img { max-width: 100%; border-radius: 8px; margin-top: 20px; }
+
+        img { max-width: 100%; border-radius: 8px; margin-top: 20px; border: 2px solid #ddd; }
         .feedback-card { margin: 1rem 0; padding: 1rem; border-radius: 8px; text-align: left; }
         .success { background: #d4edda; border-left: 5px solid #28a745; }
         .warning { background: #fff3cd; border-left: 5px solid #ffc107; }
         .construction { background: #e2e3e5; border-left: 5px solid #6c757d; }
-        button { background: #0056b3; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1rem;}
+
+        button { background: #0056b3; color: white; border: none; padding: 12px 24px; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: bold; }
+        button:hover { background: #004494; }
+
+        .coming-soon { padding: 50px; background-color: #f9f9f9; border-radius: 10px; border: 2px dashed #ccc; }
     </style>
 </head>
 <body>
+
+    <div class="navbar">
+        <a href="/tenis" class="{% if sport == 'tenis' %}active{% endif %}">🎾 Tênis</a>
+        <a href="/beach-tennis" class="{% if sport == 'beach' %}active{% endif %}">🏖️ Beach Tennis</a>
+        <a href="/pickleball" class="{% if sport == 'pickleball' %}active{% endif %}">🥒 Pickleball</a>
+    </div>
+
     <div class="container">
-        <h1>Treinador de Saque IA</h1>
-        <p>Envie seu vídeo para ver a análise do Ponto de Contato.</p>
-        <form method="post" enctype="multipart/form-data">
-            <input type="file" name="file" accept="video/*" required>
-            <br><br>
-            <button type="submit">Analisar Agora</button>
-        </form>
 
-        {% if image_base64 %}
-            <h2>Momento do Contato:</h2>
-            <img src="data:image/jpeg;base64,{{ image_base64 }}">
+        {% if sport == 'tenis' %}
+            <h1>Treinador de Saque (Tênis)</h1>
+            <p>Envie seu vídeo para analisar a técnica e ver o momento do contato.</p>
+            <form method="post" enctype="multipart/form-data">
+                <input type="file" name="file" accept="video/*" required>
+                <br><br>
+                <button type="submit">Analisar Agora</button>
+            </form>
+
+            {% if image_base64 %}
+                <h2>Momento do Contato:</h2>
+                <img src="data:image/jpeg;base64,{{ image_base64 }}">
+            {% endif %}
+
+            {% if results %}
+                <h2>Relatório Técnico:</h2>
+                {% for title, desc in results %}
+                    <div class="feedback-card {% if '✅' in title %}success{% elif '⚠️' in title %}warning{% else %}construction{% endif %}">
+                        <h3>{{ title }}</h3>
+                        <p>{{ desc }}</p>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+        {% elif sport == 'beach' %}
+            <h1>Beach Tennis AI</h1>
+            <div class="coming-soon">
+                <h2>🚧 Em Construção</h2>
+                <p>Estamos a treinar a IA para analisar o Smash e o Saque de Beach Tennis.</p>
+                <p>Novidades em breve!</p>
+            </div>
+
+        {% elif sport == 'pickleball' %}
+            <h1>Pickleball AI</h1>
+            <div class="coming-soon">
+                <h2>🚧 Em Construção</h2>
+                <p>A análise de Pickleball está a ser desenvolvida.</p>
+                <p>Volte logo!</p>
+            </div>
         {% endif %}
 
-        {% if results %}
-            <h2>Relatório:</h2>
-            {% for title, desc in results %}
-                <div class="feedback-card {% if '✅' in title %}success{% elif '⚠️' in title %}warning{% else %}construction{% endif %}">
-                    <h3>{{ title }}</h3>
-                    <p>{{ desc }}</p>
-                </div>
-            {% endfor %}
-        {% endif %}
     </div>
 </body>
 </html>

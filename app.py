@@ -2,8 +2,9 @@ import os
 import cv2
 import mediapipe as mp
 import numpy as np
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, redirect, url_for
 import base64
+import time
 
 app = Flask(__name__)
 
@@ -20,7 +21,7 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
-# --- FUNÇÕES ---
+# --- FUNÇÕES MATEMÁTICAS ---
 def calculate_angle(a,b,c):
     a = np.array(a);b = np.array(b);c = np.array(c)
     radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
@@ -32,6 +33,7 @@ def calculate_distance(a, b):
     a = np.array(a); b = np.array(b)
     return np.linalg.norm(a - b)
 
+# --- FUNÇÕES DE ANÁLISE (TÉNIS) ---
 def analyze_stance(landmarks):
     try:
         sh_l = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x, landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
@@ -40,24 +42,24 @@ def analyze_stance(landmarks):
         an_r = [landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x, landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y]
         shoulder_width = calculate_distance(sh_l, sh_r)
         feet_width = calculate_distance(an_l, an_r)
-        ratio = feet_width / shoulder_width
-        if 0.9 < ratio < 1.5: return ("Posição Inicial: ✅ Bom Equilíbrio!", "Seus pés estão na largura dos ombros.")
-        else: return ("Posição Inicial: ⚠️ Ponto de Melhoria.", "Seus pés parecem estar muito juntos ou afastados.")
+        if 0.9 < (feet_width / shoulder_width) < 1.5: return ("Posição Inicial: ✅ Bom Equilíbrio!", "Seus pés estão na largura dos ombros.")
+        else: return ("Posição Inicial: ⚠️ Ponto de Melhoria.", "Tente alinhar os pés com a largura dos ombros.")
     except: return None
 
 def analyze_trophy_pose(elbow_angle, shoulder_angle):
     if elbow_angle < 100 and shoulder_angle > 80: return ("Posição de Troféu: ✅ Ótima Posição!", "Você atinge uma boa posição de troféu.")
-    else: return (f"Posição de Troféu: ⚠️ Ponto de Melhoria.", f"Ângulo do cotovelo de {int(elbow_angle)}°, ombro de {int(shoulder_angle)}°.")
+    else: return (f"Posição de Troféu: ⚠️ Ponto de Melhoria.", f"Cotovelo em {int(elbow_angle)}°. Tente dobrar mais para carregar o saque.")
 
 def analyze_contact(max_arm_angle):
     if max_arm_angle >= 165: return (f"Ponto de Contato: ✅ Excelente Extensão!", f"Extensão de {int(max_arm_angle)} graus.")
-    else: return (f"Ponto de Contato: ⚠️ Ponto de Melhoria.", f"Extensão de apenas {int(max_arm_angle)}°.")
+    else: return (f"Ponto de Contato: ⚠️ Ponto de Melhoria.", f"Extensão de apenas {int(max_arm_angle)}°. Estique mais o braço.")
 
 def analyze_follow_through(wrist_final_pos, opposite_hip_pos):
     if wrist_final_pos is None or opposite_hip_pos is None: return None
     if wrist_final_pos[0] < opposite_hip_pos[0]: return ("Terminação: ✅ Bom Movimento!", "Você completa o movimento cruzando o corpo.")
     else: return ("Terminação: ⚠️ Ponto de Melhoria.", "Sua terminação parece curta.")
 
+# --- PROCESSAMENTO DE VÍDEO ---
 def process_video_for_image_and_feedback(video_path):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened(): return None, [("Erro", "Erro ao abrir vídeo.")]
@@ -67,13 +69,12 @@ def process_video_for_image_and_feedback(video_path):
     best_frame_index = -1
     current_frame_index = 0
 
-    # A CORREÇÃO ESTÁ AQUI: O 'with' garante que a IA ligue e desligue corretamente
     with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret: break
 
-            # Otimização de tamanho
+            # Resize para evitar crash de memória
             if frame.shape[1] > 1000:
                 scale = 1000 / frame.shape[1]
                 frame = cv2.resize(frame, (int(frame.shape[1]*scale), int(frame.shape[0]*scale)))
@@ -107,7 +108,6 @@ def process_video_for_image_and_feedback(video_path):
                 scale = 1000 / frame.shape[1]
                 frame = cv2.resize(frame, (int(frame.shape[1]*scale), int(frame.shape[0]*scale)))
 
-            # Recria a IA apenas para desenhar na foto final
             with mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5) as pose_draw:
                 image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 results = pose_draw.process(image_rgb)
@@ -120,23 +120,27 @@ def process_video_for_image_and_feedback(video_path):
     cap.release()
 
     if initial_landmarks: feedback_list.append(analyze_stance(initial_landmarks))
-    feedback_list.append(("Lançamento (Toss): 🚧 Em Construção.", "A detecção da bola virá em breve."))
+    feedback_list.append(("Lançamento (Toss): 🚧 Em Construção", "Detecção de bola virá em breve."))
     if min_elbow_angle < 170: feedback_list.append(analyze_trophy_pose(min_elbow_angle, trophy_shoulder_angle))
     if max_arm_angle > 0: feedback_list.append(analyze_contact(max_arm_angle))
     if final_wrist_pos and final_hip_pos: feedback_list.append(analyze_follow_through(final_wrist_pos, final_hip_pos))
 
     return image_base64, feedback_list
 
-@app.route('/', methods=['GET', 'POST'])
+# --- ROTAS DO SITE (NOVO MENU) ---
+
+@app.route('/')
 def index():
+    # A página inicial redireciona para o Ténis por padrão
+    return redirect(url_for('tenis'))
+
+@app.route('/tenis', methods=['GET', 'POST'])
+def tenis():
     if request.method == 'POST':
         file = request.files.get('file')
-        if not file or file.filename == '': return render_template('index.html', results=[("Erro", "Envie um arquivo.")])
+        if not file or file.filename == '': return render_template('index.html', sport='tenis', results=[("Erro", "Envie um arquivo.")])
 
-        # Cria pasta se não existir
-        if not os.path.exists(app.config['UPLOAD_FOLDER']):
-            os.makedirs(app.config['UPLOAD_FOLDER'])
-
+        if not os.path.exists(app.config['UPLOAD_FOLDER']): os.makedirs(app.config['UPLOAD_FOLDER'])
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filepath)
 
@@ -144,10 +148,18 @@ def index():
 
         try: os.remove(filepath)
         except: pass
-        return render_template('index.html', results=results_list, image_base64=image_data)
-    return render_template('index.html', results=None, image_base64=None)
+        return render_template('index.html', sport='tenis', results=results_list, image_base64=image_data)
+
+    return render_template('index.html', sport='tenis', results=None, image_base64=None)
+
+@app.route('/beach-tennis')
+def beach_tennis():
+    return render_template('index.html', sport='beach')
+
+@app.route('/pickleball')
+def pickleball():
+    return render_template('index.html', sport='pickleball')
 
 if __name__ == "__main__":
-    # Garante que roda na porta certa (Render ou Local)
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
