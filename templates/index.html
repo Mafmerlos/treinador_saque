@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tênis AI - Análise de Saque</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f9; color: #333; padding: 20px; text-align: center;}
+        .container { background: #fff; padding: 2rem; border-radius: 12px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { color: #0056b3; }
+        img { max-width: 100%; border-radius: 8px; margin-top: 20px; }
+        .feedback-card { margin: 1rem 0; padding: 1rem; border-radius: 8px; text-align: left; }
+        .success { background: #d4edda; border-left: 5px solid #28a745; }
+        .warning { background: #fff3cd; border-left: 5px solid #ffc107; }
+        .construction { background: #e2e3e5; border-left: 5px solid #6c757d; }
+        button { background: #0056b3; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 1rem;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Treinador de Saque IA</h1>
+        <p>Envie seu vídeo para ver a análise do Ponto de Contato.</p>
+        <form method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept="video/*" required>
+            <br><br>
+            <button type="submit">Analisar Agora</button>
+        </form>
+
+        {% if image_base64 %}
+            <h2>Momento do Contato:</h2>
+            <img src="data:image/jpeg;base64,{{ image_base64 }}">
+        {% endif %}
+
+        {% if results %}
+            <h2>Relatório:</h2>
+            {% for title, desc in results %}
+                <div class="feedback-card {% if '✅' in title %}success{% elif '⚠️' in title %}warning{% else %}construction{% endif %}">
+                    <h3>{{ title }}</h3>
+                    <p>{{ desc }}</p>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+</body>
+</html>
